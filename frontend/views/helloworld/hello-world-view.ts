@@ -6,7 +6,7 @@ import { Binder } from '@vaadin/form';
 import '@vaadin/form-layout';
 import { EndpointError } from '@vaadin/fusion-frontend';
 import '@vaadin/grid';
-import { Grid } from '@vaadin/grid';
+import { Grid, GridColumn } from '@vaadin/grid';
 import '@vaadin/grid/vaadin-grid-filter';
 import '@vaadin/grid/vaadin-grid-sort-column';
 import '@vaadin/horizontal-layout';
@@ -23,7 +23,13 @@ import * as SamplePersonEndpoint from 'Frontend/generated/SamplePersonEndpoint';
 import { html } from 'lit';
 import { customElement, property, query } from 'lit/decorators.js';
 import { View } from '../view';
-import { headerWithCheckboxFilter, headerWithTextFieldFilter, infiniteScrollDataProvider } from '../../util';
+import {
+  GridDataProviderWithFilter,
+  headerWithCheckboxFilter,
+  headerWithFilter,
+  headerWithTextFieldFilter,
+  infiniteScrollDataProvider,
+} from '../../util';
 
 @customElement('hello-world-view')
 export class HelloWorldView extends View {
@@ -37,6 +43,12 @@ export class HelloWorldView extends View {
 
   private binder = new Binder<SamplePerson, SamplePersonModel>(this, SamplePersonModel);
 
+  private textFieldFilter = (grid: Grid, column: GridColumn, dataProvider: GridDataProviderWithFilter<any>) =>
+    html`<vaadin-text-field
+      @change=${(e: any) => dataProvider.filterString(grid, column.path!, (e.target! as any).value)}
+      @keydown=${(e: KeyboardEvent) => e.stopPropagation()}
+    ></vaadin-text-field>`;
+
   render() {
     return html`
       <vaadin-split-layout class="w-full h-full">
@@ -49,11 +61,11 @@ export class HelloWorldView extends View {
             .dataProvider=${this.gridDataProvider}
             @active-item-changed=${this.itemSelected}
           >
-            <vaadin-grid-column auto-width path="firstName" .headerRenderer=${headerWithTextFieldFilter}> </vaadin-grid-column>
-            <vaadin-grid-column auto-width path="lastName" .headerRenderer=${headerWithTextFieldFilter}> </vaadin-grid-column>
-            <vaadin-grid-column auto-width path="email" .headerRenderer=${headerWithTextFieldFilter}> </vaadin-grid-column>
+            <vaadin-grid-column auto-width path="firstName" ${headerWithFilter(this.textFieldFilter)}>
+            </vaadin-grid-column>
+            <vaadin-grid-column auto-width path="lastName" ${headerWithTextFieldFilter()}> </vaadin-grid-column>
 
-            <vaadin-grid-column auto-width path="important" .headerRenderer=${headerWithCheckboxFilter}
+            <vaadin-grid-column auto-width path="important" ${headerWithCheckboxFilter()}>
               ><template
                 ><iron-icon
                   hidden="[[!item.important]]"

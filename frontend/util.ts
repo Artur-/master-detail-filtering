@@ -1,19 +1,13 @@
-import {
-  Grid,
-  GridColumn,
-  GridDataProvider,
-  GridDataProviderCallback,
-  GridDataProviderParams,
-  GridFilterDefinition,
-} from '@vaadin/grid';
+import { Grid, GridColumn, GridDataProvider, GridDataProviderCallback, GridDataProviderParams } from '@vaadin/grid';
+import '@vaadin/vaadin-checkbox';
+import '@vaadin/vaadin-text-field';
+import Filter from 'Frontend/generated/com/example/application/data/endpoint/Filter';
+import FilterType from 'Frontend/generated/com/example/application/data/endpoint/Filter/FilterType';
 import Pageable from 'Frontend/generated/com/vaadin/fusion/mappedtypes/Pageable';
 import Sort from 'Frontend/generated/com/vaadin/fusion/mappedtypes/Sort';
 import Direction from 'Frontend/generated/org/springframework/data/domain/Sort/Direction';
-import { html, render } from 'lit';
-import '@vaadin/vaadin-text-field';
-import '@vaadin/vaadin-checkbox';
-import Filter from 'Frontend/generated/com/example/application/data/endpoint/Filter';
-import FilterType from 'Frontend/generated/com/example/application/data/endpoint/Filter/FilterType';
+import { html, render, TemplateResult } from 'lit';
+import { directive, Directive, ElementPartInfo, PartInfo, PartType } from 'lit/directive';
 
 interface Fetch<T> {
   (pageable: Pageable | undefined, filters: Filter[]): Promise<ReadonlyArray<T | undefined> | undefined>;
@@ -76,7 +70,7 @@ export const infiniteScrollDataProvider = <T>(dataFetch: Fetch<T>): GridDataProv
   };
 
   dataProvider.filterString = (grid: Grid, path: string, value: string | undefined) => {
-    filter(grid, { path, value, type: FilterType.STRING });
+    filter(grid, { path, value: value === '' ? undefined : value, type: FilterType.STRING });
   };
 
   dataProvider.filterBoolean = (grid: Grid, path: string, value: string | undefined) => {
@@ -86,45 +80,93 @@ export const infiniteScrollDataProvider = <T>(dataFetch: Fetch<T>): GridDataProv
   return dataProvider;
 };
 
-export const headerWithTextFieldFilter = (root: HTMLElement, column: GridColumn) => {
-  const grid: Grid = (column as any)._grid;
-  const dataProvider = grid.dataProvider as GridDataProviderWithFilter<any>;
-  render(
-    html`
-      <div style="display: flex;flex-direction:column">
-        <vaadin-grid-sorter style="align-self: start" path="${column.path!}"
-          >${(column as any)._generateHeader(column.path)}</vaadin-grid-sorter
-        >
-        <vaadin-text-field
-          @change=${(e: Event) => {
-            dataProvider.filterString(grid, column.path!, (e.target! as any).value);
-          }}
-          @keydown=${(e: KeyboardEvent) => {
-            e.stopPropagation();
-          }}
-        ></vaadin-text-field>
-      </div>
-    `,
-    root
-  );
-};
+export const headerWithFilter = directive(
+  class extends Directive {
+    partInfo: ElementPartInfo;
+    constructor(partInfo: PartInfo) {
+      super(partInfo);
+      if (partInfo.type !== PartType.ELEMENT) {
+        throw new Error('Use as <vaadin-grid-column ${headerWithFilter(...)}></vaadin-grid-column>');
+      }
+      this.partInfo = partInfo;
+    }
+    render(
+      fieldProvider: (grid: Grid, column: GridColumn, dataProvider: GridDataProviderWithFilter<any>) => TemplateResult
+    ) {
+      const column = (this.partInfo as any).element as GridColumn;
+      if (!column.headerRenderer) {
+        column.headerRenderer = headerWithFilterRenderer(fieldProvider);
+      }
+    }
+  }
+);
 
-export const headerWithCheckboxFilter = (root: HTMLElement, column: GridColumn) => {
-  const grid: Grid = (column as any)._grid;
-  const dataProvider = grid.dataProvider as GridDataProviderWithFilter<any>;
-  render(
-    html`
-      <div style="display: flex;flex-direction:column">
-        <vaadin-grid-sorter style="align-self: start" path="${column.path!}"
-          >${(column as any)._generateHeader(column.path)}</vaadin-grid-sorter
-        >
-        <vaadin-checkbox
-          @checked-changed=${(e: Event) => {
-            dataProvider.filterBoolean(grid, column.path!, (e.target! as any).checked);
-          }}
-        ></vaadin-checkbox>
-      </div>
-    `,
-    root
-  );
-};
+const defaultFilterTextFieldProvider = (
+  grid: Grid,
+  column: GridColumn,
+  dataProvider: GridDataProviderWithFilter<any>
+) =>
+  html`<vaadin-text-field
+    @change=${(e: any) => dataProvider.filterString(grid, column.path!, (e.target! as any).value)}
+    @keydown=${(e: KeyboardEvent) => e.stopPropagation()}
+  ></vaadin-text-field>`;
+
+const defaultFilterCheckBoxProvider = (grid: Grid, column: GridColumn, dataProvider: GridDataProviderWithFilter<any>) =>
+  html`<vaadin-checkbox
+    @checked-changed=${(e: Event) => dataProvider.filterBoolean(grid, column.path!, (e.target! as any).checked)}
+  ></vaadin-checkbox>`;
+
+export const headerWithTextFieldFilter = directive(
+  class extends Directive {
+    partInfo: ElementPartInfo;
+    constructor(partInfo: PartInfo) {
+      super(partInfo);
+      if (partInfo.type !== PartType.ELEMENT) {
+        throw new Error('Use as <vaadin-grid-column ${headerWithTextFieldFilter(...)}></vaadin-grid-column>');
+      }
+      this.partInfo = partInfo;
+    }
+    render() {
+      const column = (this.partInfo as any).element as GridColumn;
+      if (!column.headerRenderer) {
+        column.headerRenderer = headerWithFilterRenderer(defaultFilterTextFieldProvider);
+      }
+    }
+  }
+);
+export const headerWithCheckboxFilter = directive(
+  class extends Directive {
+    partInfo: ElementPartInfo;
+    constructor(partInfo: PartInfo) {
+      super(partInfo);
+      if (partInfo.type !== PartType.ELEMENT) {
+        throw new Error('Use as <vaadin-grid-column ${headerWithCheckboxFilter(...)}></vaadin-grid-column>');
+      }
+      this.partInfo = partInfo;
+    }
+    render() {
+      const column = (this.partInfo as any).element as GridColumn;
+      if (!column.headerRenderer) {
+        column.headerRenderer = headerWithFilterRenderer(defaultFilterCheckBoxProvider);
+      }
+    }
+  }
+);
+
+const headerWithFilterRenderer =
+  (fieldProvider: (grid: Grid, column: GridColumn, dataProvider: GridDataProviderWithFilter<any>) => TemplateResult) =>
+  (root: HTMLElement, column: GridColumn) => {
+    const grid: Grid = (column as any)._grid;
+
+    render(
+      html`
+        <div style="display: flex;flex-direction:column">
+          <vaadin-grid-sorter style="align-self: start" path="${column.path!}"
+            >${(column as any)._generateHeader(column.path)}</vaadin-grid-sorter
+          >
+          ${fieldProvider(grid, column, grid.dataProvider as GridDataProviderWithFilter<any>)}
+        </div>
+      `,
+      root
+    );
+  };
