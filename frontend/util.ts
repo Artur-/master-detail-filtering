@@ -1,0 +1,130 @@
+import {
+  Grid,
+  GridColumn,
+  GridDataProvider,
+  GridDataProviderCallback,
+  GridDataProviderParams,
+  GridFilterDefinition,
+} from '@vaadin/grid';
+import Pageable from 'Frontend/generated/com/vaadin/fusion/mappedtypes/Pageable';
+import Sort from 'Frontend/generated/com/vaadin/fusion/mappedtypes/Sort';
+import Direction from 'Frontend/generated/org/springframework/data/domain/Sort/Direction';
+import { html, render } from 'lit';
+import '@vaadin/vaadin-text-field';
+import '@vaadin/vaadin-checkbox';
+import Filter from 'Frontend/generated/com/example/application/data/endpoint/Filter';
+import FilterType from 'Frontend/generated/com/example/application/data/endpoint/Filter/FilterType';
+
+interface Fetch<T> {
+  (pageable: Pageable | undefined, filters: Filter[]): Promise<ReadonlyArray<T | undefined> | undefined>;
+}
+
+export interface GridDataProviderWithFilter<T> extends GridDataProvider<T> {
+  filterString(grid: Grid, path: string, value: string): void;
+  filterBoolean(grid: Grid, path: string, value: string): void;
+}
+
+export const infiniteScrollDataProvider = <T>(dataFetch: Fetch<T>): GridDataProviderWithFilter<T> => {
+  const filters: Filter[] = [];
+
+  const dataProvider: GridDataProviderWithFilter<T> = async (
+    params: GridDataProviderParams<T>,
+    callback: GridDataProviderCallback<T>
+  ): Promise<void> => {
+    type NewType = Sort;
+
+    const sort: NewType = {
+      orders: params.sortOrders.map((order) => ({
+        property: order.path,
+        direction: order.direction == 'asc' ? Direction.ASC : Direction.DESC,
+        ignoreCase: false,
+      })),
+    };
+
+    const data: Array<T> = (await dataFetch(
+      {
+        pageNumber: params.page,
+        pageSize: params.pageSize,
+        sort: sort,
+      },
+      filters
+    )) as Array<T>;
+
+    const firstIndex = params.pageSize * params.page;
+    const sizeEstimate = firstIndex + data.length + (data.length > 0 ? 1 : 0);
+    callback(data, sizeEstimate);
+  };
+
+  const filter = (grid: Grid, filter: Filter) => {
+    const existingIndex = filters.findIndex((f) => f.path === filter.path);
+
+    if (filter.value === undefined) {
+      if (existingIndex) {
+        filters.splice(existingIndex, 1);
+        grid.clearCache();
+      }
+      return;
+    }
+
+    if (existingIndex >= 0) {
+      // Update existing
+      filters[existingIndex].value = filter.value;
+    } else {
+      filters.push(filter);
+    }
+    grid.clearCache();
+  };
+
+  dataProvider.filterString = (grid: Grid, path: string, value: string | undefined) => {
+    filter(grid, { path, value, type: FilterType.STRING });
+  };
+
+  dataProvider.filterBoolean = (grid: Grid, path: string, value: string | undefined) => {
+    filter(grid, { path, value, type: FilterType.BOOLEAN });
+  };
+
+  return dataProvider;
+};
+
+export const headerWithTextFieldFilter = (root: HTMLElement, column: GridColumn) => {
+  const grid: Grid = (column as any)._grid;
+  const dataProvider = grid.dataProvider as GridDataProviderWithFilter<any>;
+  render(
+    html`
+      <div style="display: flex;flex-direction:column">
+        <vaadin-grid-sorter style="align-self: start" path="${column.path!}"
+          >${(column as any)._generateHeader(column.path)}</vaadin-grid-sorter
+        >
+        <vaadin-text-field
+          @change=${(e: Event) => {
+            dataProvider.filterString(grid, column.path!, (e.target! as any).value);
+          }}
+          @keydown=${(e: KeyboardEvent) => {
+            e.stopPropagation();
+          }}
+        ></vaadin-text-field>
+      </div>
+    `,
+    root
+  );
+};
+
+export const headerWithCheckboxFilter = (root: HTMLElement, column: GridColumn) => {
+  const grid: Grid = (column as any)._grid;
+  const dataProvider = grid.dataProvider as GridDataProviderWithFilter<any>;
+  render(
+    html`
+      <div style="display: flex;flex-direction:column">
+        <vaadin-grid-sorter style="align-self: start" path="${column.path!}"
+          >${(column as any)._generateHeader(column.path)}</vaadin-grid-sorter
+        >
+        <vaadin-checkbox
+          @checked-changed=${(e: Event) => {
+            dataProvider.filterBoolean(grid, column.path!, (e.target! as any).checked);
+          }}
+        ></vaadin-checkbox>
+      </div>
+    `,
+    root
+  );
+};

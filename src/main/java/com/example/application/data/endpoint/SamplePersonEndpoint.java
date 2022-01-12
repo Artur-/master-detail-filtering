@@ -2,9 +2,12 @@ package com.example.application.data.endpoint;
 
 import com.example.application.data.entity.SamplePerson;
 import com.example.application.data.service.SamplePersonService;
+import com.example.application.data.service.SamplePersonSpecification;
 import com.vaadin.flow.server.auth.AnonymousAllowed;
 import com.vaadin.fusion.Endpoint;
 import com.vaadin.fusion.Nonnull;
+
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -22,8 +25,8 @@ public class SamplePersonEndpoint {
     }
 
     @Nonnull
-    public Page<@Nonnull SamplePerson> list(Pageable page) {
-        return service.list(page);
+    public Page<@Nonnull SamplePerson> list(Pageable page, List<Filter> filters) {
+        return service.list(page, filters);
     }
 
     public Optional<SamplePerson> get(@Nonnull UUID id) {

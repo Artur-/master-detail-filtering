@@ -2,11 +2,12 @@ import '@polymer/iron-icon';
 import '@vaadin/button';
 import '@vaadin/date-picker';
 import '@vaadin/date-time-picker';
-import { Binder, field } from '@vaadin/form';
+import { Binder } from '@vaadin/form';
 import '@vaadin/form-layout';
 import { EndpointError } from '@vaadin/fusion-frontend';
 import '@vaadin/grid';
-import { Grid, GridDataProviderCallback, GridDataProviderParams } from '@vaadin/grid';
+import { Grid } from '@vaadin/grid';
+import '@vaadin/grid/vaadin-grid-filter';
 import '@vaadin/grid/vaadin-grid-sort-column';
 import '@vaadin/horizontal-layout';
 import '@vaadin/notification';
@@ -18,12 +19,11 @@ import '@vaadin/upload';
 import '@vaadin/vaadin-icons';
 import SamplePerson from 'Frontend/generated/com/example/application/data/entity/SamplePerson';
 import SamplePersonModel from 'Frontend/generated/com/example/application/data/entity/SamplePersonModel';
-import Sort from 'Frontend/generated/com/vaadin/fusion/mappedtypes/Sort';
-import Direction from 'Frontend/generated/org/springframework/data/domain/Sort/Direction';
 import * as SamplePersonEndpoint from 'Frontend/generated/SamplePersonEndpoint';
 import { html } from 'lit';
 import { customElement, property, query } from 'lit/decorators.js';
 import { View } from '../view';
+import { headerWithCheckboxFilter, headerWithTextFieldFilter, infiniteScrollDataProvider } from '../../util';
 
 @customElement('hello-world-view')
 export class HelloWorldView extends View {
@@ -33,7 +33,7 @@ export class HelloWorldView extends View {
   @property({ type: Number })
   private gridSize = 0;
 
-  private gridDataProvider = this.getGridData.bind(this);
+  private gridDataProvider = infiniteScrollDataProvider(SamplePersonEndpoint.list);
 
   private binder = new Binder<SamplePerson, SamplePersonModel>(this, SamplePersonModel);
 
@@ -49,14 +49,11 @@ export class HelloWorldView extends View {
             .dataProvider=${this.gridDataProvider}
             @active-item-changed=${this.itemSelected}
           >
-            <vaadin-grid-sort-column auto-width path="id"></vaadin-grid-sort-column>
-            <vaadin-grid-sort-column auto-width path="firstName"></vaadin-grid-sort-column>
-            <vaadin-grid-sort-column auto-width path="lastName"></vaadin-grid-sort-column>
-            <vaadin-grid-sort-column auto-width path="email"></vaadin-grid-sort-column>
-            <vaadin-grid-sort-column auto-width path="phone"></vaadin-grid-sort-column>
-            <vaadin-grid-sort-column auto-width path="dateOfBirth"></vaadin-grid-sort-column>
-            <vaadin-grid-sort-column auto-width path="occupation"></vaadin-grid-sort-column>
-            <vaadin-grid-column auto-width path="important"
+            <vaadin-grid-column auto-width path="firstName" .headerRenderer=${headerWithTextFieldFilter}> </vaadin-grid-column>
+            <vaadin-grid-column auto-width path="lastName" .headerRenderer=${headerWithTextFieldFilter}> </vaadin-grid-column>
+            <vaadin-grid-column auto-width path="email" .headerRenderer=${headerWithTextFieldFilter}> </vaadin-grid-column>
+
+            <vaadin-grid-column auto-width path="important" .headerRenderer=${headerWithCheckboxFilter}
               ><template
                 ><iron-icon
                   hidden="[[!item.important]]"
@@ -71,64 +68,13 @@ export class HelloWorldView extends View {
                 >
                 </iron-icon></template
             ></vaadin-grid-column>
+            <vaadin-grid-sort-column auto-width path="phone"></vaadin-grid-sort-column>
+            <vaadin-grid-sort-column auto-width path="dateOfBirth"></vaadin-grid-sort-column>
+            <vaadin-grid-sort-column auto-width path="occupation"></vaadin-grid-sort-column>
           </vaadin-grid>
-        </div>
-        <div class="flex flex-col" style="width: 400px;">
-          <div class="p-l flex-grow">
-            <vaadin-form-layout
-              ><vaadin-text-field label="Id" id="id" ${field(this.binder.model.id)}></vaadin-text-field
-              ><vaadin-text-field
-                label="First name"
-                id="firstName"
-                ${field(this.binder.model.firstName)}
-              ></vaadin-text-field
-              ><vaadin-text-field
-                label="Last name"
-                id="lastName"
-                ${field(this.binder.model.lastName)}
-              ></vaadin-text-field
-              ><vaadin-text-field label="Email" id="email" ${field(this.binder.model.email)}></vaadin-text-field
-              ><vaadin-text-field label="Phone" id="phone" ${field(this.binder.model.phone)}></vaadin-text-field
-              ><vaadin-date-picker
-                label="Date of birth"
-                id="dateOfBirth"
-                ${field(this.binder.model.dateOfBirth)}
-              ></vaadin-date-picker
-              ><vaadin-text-field
-                label="Occupation"
-                id="occupation"
-                ${field(this.binder.model.occupation)}
-              ></vaadin-text-field
-              ><vaadin-checkbox
-                id="important"
-                ${field(this.binder.model.important)}
-                style="padding-top: var(--lumo-space-m);"
-                >Important</vaadin-checkbox
-              ></vaadin-form-layout
-            >
-          </div>
-          <vaadin-horizontal-layout class="w-full flex-wrap bg-contrast-5 py-s px-l" theme="spacing">
-            <vaadin-button theme="primary" @click=${this.save}>Save</vaadin-button>
-            <vaadin-button theme="tertiary" @click=${this.cancel}>Cancel</vaadin-button>
-          </vaadin-horizontal-layout>
         </div>
       </vaadin-split-layout>
     `;
-  }
-
-  private async getGridData(
-    params: GridDataProviderParams<SamplePerson>,
-    callback: GridDataProviderCallback<SamplePerson | undefined>
-  ) {
-    const sort: Sort = {
-      orders: params.sortOrders.map((order) => ({
-        property: order.path,
-        direction: order.direction == 'asc' ? Direction.ASC : Direction.DESC,
-        ignoreCase: false,
-      })),
-    };
-    const data = await SamplePersonEndpoint.list({ pageNumber: params.page, pageSize: params.pageSize, sort });
-    callback(data);
   }
 
   async connectedCallback() {

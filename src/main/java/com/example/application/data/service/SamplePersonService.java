@@ -1,11 +1,15 @@
 package com.example.application.data.service;
 
+import com.example.application.data.endpoint.Filter;
 import com.example.application.data.entity.SamplePerson;
+
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -29,8 +33,18 @@ public class SamplePersonService {
         repository.deleteById(id);
     }
 
-    public Page<SamplePerson> list(Pageable pageable) {
-        return repository.findAll(pageable);
+    public Page<SamplePerson> list(Pageable pageable, List<Filter> filters) {
+        Specification<SamplePerson> spec = null;
+        for (Filter f : filters) {
+            SamplePersonSpecification thisspec = new SamplePersonSpecification(f);
+
+            if (spec == null) {
+                spec = thisspec;
+            } else {
+                spec = spec.and(thisspec);
+            }
+        }
+        return repository.findAll(spec, pageable);
     }
 
     public int count() {
